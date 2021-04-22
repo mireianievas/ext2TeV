@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='ext2TeV',
-    version='0.1',
+    version='0.2',
     packages=['ext2TeV', 'ext2TeV.data'],
     package_data={'ext2TeV': ['data/']},
     # packages=find_packages(),

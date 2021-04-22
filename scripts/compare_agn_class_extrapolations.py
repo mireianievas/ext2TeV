@@ -1,107 +1,101 @@
-#!/bin/env python
-
-import yaml
-import glob
-import os
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt 
 
-from ext2TeV import PACKAGE_DATA
+from ext2TeV.catalog import GammaCAT, FermiCAT
 from ext2TeV.residuals import Residuals
-from ext2TeV.catalog import build_gammacat
-from ext2TeV.source import Source
+from ext2TeV.fitter import Fitter
+from ext2TeV.eblmodel import Eblmodel
 
-res = Residuals()
-source = Source()
-source.set_residuals(res)
-source.set_ebl_interpolator()
+from astropy.io import fits as pyfits
 
-background_dcs_file = os.path.join(PACKAGE_DATA, 'background_dcs/background_dcs.txt')
+# Load LAT and GammaCAT catalogs 
 
-dataset = None
-try:
-	print('Trying to read latest available gammacat catalog:')
-	gammacats = glob.glob("{}/gammacat_export_*.yaml".format(PACKAGE_DATA))
-	gammacats.sort()
-	print(gammacats)
-	# Open latest gammacat export:
-	with open(gammacats[-1]) as gcf:
-		dataset = yaml.load(gcf)
-except:
-	raise
-	print('building catalog')
-	dataset = build_gammacat(gammacat_path="../Catalogs/gamma-cat/output")
+# GammaCAT (VHE collection of figures)
+gammacat = GammaCAT()
+gammacat.read("ext2TeV/data/gammacat_export_20210215.yaml")
 
-if dataset is None:
-	print("Not able to generate the dataset. Exitting...")
-	exit(-1)
+# Fermi catalogs (4FGL/4LAC and 3FHL)
+fermicat = FermiCAT()
+fermicat.set_catalog_urls()
+fermicat3fhl = FermiCAT()
+fermicat3fhl.set_catalog_urls()
 
-agn_classes = ['fsrq', 'hbl', 'ibl', 'lbl', 'fri']
+# Create a residuals object (we will it with content later)
+residuals = Residuals()
 
+# Load EBL
+ebl = Eblmodel()
+ebl.load_ebl_dominguez()
+ebl.set_interpolator()
 
-def compare_class_extrapolations(agn_class, source, lbl_tail = ''):
-	fig, spls = plt.subplots(nrows=3, ncols=1, sharex=True, sharey=True,
-							 squeeze=True, subplot_kw=None, gridspec_kw=None, figsize=(6, 4), dpi=150)
+# Look forextragalactic sources
+extragalactic = []
+for k in gammacat.contents.keys():
+    src = gammacat.contents[k]
+    if np.asarray([src['classes'],]).flatten()[0] in ['hbl','lbl', 'ibl', 'fsrq', 'agn']:
+        extragalactic.append(k)
 
-	with open('results/data_{}_{}.yml'.format(agn_class,lbl_tail), 'w') as outfile:
-		yaml.dump(source.residuals, outfile, default_flow_style=True)
-	
-	for k, mod in enumerate(source.residuals.xlogval[agn_class]):
-		
-		spls[k].scatter(
-			source.residuals.xlogval[agn_class][mod],
-			source.residuals.ylogres[agn_class][mod],
-			label=mod if mod not in lbl_tail else lbl_tail,
-			s=2,
-			marker=['o', 's', 'D'][k],
-			facecolor='None',
-			color='C{}'.format(k),
-			alpha=0.3,
-		)
+# Loop over each extragalactic object
+for _,k in enumerate(extragalactic):
+    # Load GammaCAT spectra
+    src = gammacat.contents[k]
+    gammacat.reset_results()
+    gammacat.match_src(src)
+    gammacat.get_spectralpoints()
+    
+    # Locate 3FHL counterpart (if any) and its spectrum 
+    fermicat3fhl.reset_results()
+    fermicat3fhl.reset_spectral_points()
+    fermicat3fhl.set_active_catalog("3FHL")
+    fermicat3fhl.match_src(src)
+    fermicat3fhl.fill_spectrum()
+    fermicat3fhl.get_properties()
+    
+    # Locate 4LAC counterpart (if any) and its spectrum / Likelihood models 
+    fermicat.reset_results()
+    fermicat.reset_spectral_points()
+    fermicat.set_active_catalog("4FGL")
+    fermicat.match_src(src)
+    fermicat.fill_spectrum()
+    fermicat.extract_model_parameters()
+    fermicat.get_properties()
+    
+    # Create a Fitter object, add the previous spectral points and compute residuals
+    mpl.rcParams['text.usetex'] = False
+    myfitter = Fitter()
 
-		spls[k].axhline(0, lw=0.2, ls='dashed', color='black', zorder=-10)
-		spls[k].set_xlim([-1, 1.5])
-		spls[k].set_ylim([-40, 40])
-		spls[k].legend()
-		spls[k].grid(ls='dotted', lw=0.33)
+    # Add LAT and VHE data points
+    myfitter.add_fermi(fermicat.result)
+    myfitter.add_fermi2(fermicat3fhl.result)
+    myfitter.add_vhe(gammacat.results)
+    
+    # Combine spectra
+    myfitter.build_broadband_spectra()
+    myfitter.set_ebl(ebl)
 
-	spls[0].set_title(agn_class)
-	spls[1].set_ylabel('Residues (log-fluxes)')
-	spls[-1].set_xlabel('log E [TeV]')
-	return fig
+    # Set redshift and spectral class (to test CTA's proposed extension to TeV)
+    myfitter.set_model_redshift(fermicat.result['redshift'])
+    myfitter.set_model_spectralclass(fermicat.result['class'])
 
+    # Create an empty figurure
+    myfitter.create_figure()
 
-# Go through all sources belonging to any of the agn classes listed above, and compare their extrapolation
-# to VHE from LAT catalogs with actual VHE observations.
+    # Get lowest and elevated states
+    myfitter.get_state()
 
+    # Plot data
+    myfitter.plot_fermi_data()
+    myfitter.plot_vhe_data()
 
-model_pool = ['pwl','lp']
-model_pool = []
+    # Compute LAT-predefined models and CTA's adopted solution, then fill residuals.
+    myfitter.predefined_models(residuals)
 
-for ExpIndex in np.linspace(0.5,1.0,13):
-	model_pool.append('plec,ExpI={0:.3f}'.format(ExpIndex))
+    # Styling and save figure
+    myfitter.finish_figure()
+    myfitter.savefig()
 
-for agn_class in agn_classes:
-	for model_sel in model_pool:
-		source.residuals.reset_cls_model(agn_class,model_sel.split(",")[0])
-		
-		print("-----> Using model {} now ~~~~~~~".format(model_sel))
-		# build the broadband sed
-		for k, src in enumerate(dataset):
-			### extract the sed
-			if 'sed' not in dataset[src].keys():
-				print('no sed')
-				continue
-			
-			source.broadband_sed(dataset=dataset[src], 
-				model=model_sel, 
-				figure_path='results/individual_fits')
-
-		model_lbl = model_sel.replace(",","_")
-		if model_lbl in ['pwl','lp']:
-			continue
-
-		fig = compare_class_extrapolations(agn_class, source, lbl_tail='_{}'.format(model_lbl))
-		plt.savefig("results/compare_extrapolations_class_{}_{}.png".format(agn_class,model_lbl),
-			 dpi=200, bbox_inches='tight')
-
+# Plot residuals
+residuals.create_figure()
+residuals.plot_panels()
+residuals.savefig()
