@@ -20,7 +20,7 @@ class Spectrum(object):
         if sptype in ['EHSP','EHBL']:
             self.Ecutoff = 10
         elif sptype in ['HSP','HBL']:
-            self.Ecutoff = 11
+            self.Ecutoff = 1
         else:
             self.Ecutoff = 0.1
         
