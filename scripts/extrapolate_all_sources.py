@@ -2,10 +2,10 @@ import yaml
 import glob
 import os
 
-from ext2vhe.residuals import Residuals
-from ext2vhe import PACKAGE_DATA
-from ext2vhe.catalog import build_gammacat
-from ext2vhe.source import Source
+from ext2TeV.residuals import Residuals
+from ext2TeV import PACKAGE_DATA
+from ext2TeV.catalog import build_gammacat
+from ext2TeV.source import Source
 
 res  = Residuals()
 source = Source()

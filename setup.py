@@ -4,9 +4,10 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
-    name='ext2vhe',
+    name='ext2TeV',
     version='0.1',
-    packages=['ext2vhe', 'ext2vhe.data'],
+    packages=['ext2TeV', 'ext2TeV.data'],
+    package_data={'ext2TeV': ['data/']},
     # packages=find_packages(),
     install_requires=[
         'click',
@@ -21,7 +22,7 @@ setup(
     description="A python library to test extrapolation schemes to the VHE regime",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://gitlab.com/mireianievas/ext2vhe",
+    url="https://github.com/mireianievas/ext2TeV",
     # packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",

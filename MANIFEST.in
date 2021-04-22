@@ -1,7 +1,7 @@
 include README.md
 include LICENSE
 
-recursive-include ext2vhe *.yaml
+recursive-include ext2TeV *.yaml
 recursive-include licenses *
 recursive-include docs *
 
