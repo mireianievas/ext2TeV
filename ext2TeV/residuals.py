@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 class Residuals(object):
     def __init__(self):
         # dict with log of values of X and Y-residues for different type of sources.
+        self.ids = {}
         self.xlogval = {}
         self.ylogval = {}
         self.ylogmod = {}
@@ -11,6 +12,7 @@ class Residuals(object):
         self.ylogerr = {}
 
     def reset_cls(self,cls):
+        self.ids[cls] = {}
         self.xlogval[cls] = {}
         self.ylogval[cls] = {}
         self.ylogmod[cls] = {}
@@ -21,6 +23,7 @@ class Residuals(object):
         if cls not in self.xlogval:
             self.reset_cls(cls)
 
+        self.ids[cls][model] = []
         self.xlogval[cls][model] = []
         self.ylogval[cls][model] = []
         self.ylogmod[cls][model] = []
@@ -28,6 +31,7 @@ class Residuals(object):
         self.ylogerr[cls][model] = []
 
     def add_value(self, point):
+        ids = point['ids']
         cls = point['srccls']
         model = point['model']
         xlogval = point['xlogval']
@@ -42,6 +46,7 @@ class Residuals(object):
         if model not in self.xlogval[cls]:
             self.reset_cls_model(cls,model)
 
+        self.ids[cls][model].append(ids)
         self.xlogval[cls][model].append(xlogval)
         self.ylogval[cls][model].append(ylogval)
         self.ylogmod[cls][model].append(ylogmod)
@@ -61,6 +66,7 @@ class Residuals(object):
             for j,model in enumerate(list(self.xlogval[src_class].keys())):
 
                 # extract residual values
+                ids    = self.ids[src_class][model]
                 E_log  = self.xlogval[src_class][model]
                 EP_log = self.ylogval[src_class][model]
                 EPerr_log = self.ylogval[src_class][model]
@@ -117,6 +123,11 @@ class Residuals(object):
                     zorder=-10,
                 )
 
+
+                # Add number of spectra
+                props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+                plo.text(0.8,0.1,len(np.unique(sorted(ids))), 
+                         transform=plo.transAxes, fontsize='large', bbox=props)
 
                 plo.axhline(0,color='black',ls='solid',lw=0.33)
                 plo.set_xlim([-1.3,1])

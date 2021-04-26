@@ -110,7 +110,11 @@ class GammaCAT(Catalog):
         catalog['id']  = [item for item in self.contents \
                           if 'dec' in self.contents[item]]
         
-        self.matched = self.contents[self.match_src_catalog(catalog,src,tol)]
+        try:
+            self.matched = self.contents[self.match_src_catalog(catalog,src,tol)]
+        except KeyError:
+            self.matched = None
+            return
         
     def get_spectralpoints(self):
         self.results = []
@@ -140,6 +144,166 @@ class GammaCAT(Catalog):
             # add units
             fluxerr = fluxerr*flux.unit
             
+            
+            if 'e_min' in sed.keys() and 'e_max' in sed.keys():
+                energyerrn = (energies - sed['e_min'][isnotnan]).to(energies.unit)
+                energyerrp = (sed['e_max'][isnotnan] - energies).to(energies.unit)
+
+            if energyerr is None:
+                energylog = np.log10(energies.value)
+                energylogsep = np.min(energylog[1:] - energylog[:-1])
+                energyerrn = energies.value - (10 ** (energylog - energylogsep / 2.))
+                energyerrp = 10 ** (energylog + energylogsep / 2.) - energies.value
+
+            e2flux = energies ** 2 * flux
+            e2fluxerr = energies ** 2 * fluxerr
+
+            result = {}
+            result['name'] = self.matched['common_name']
+            result['set'] = k
+            result['E'] = energies.to("TeV")
+            result['Eerr'] = np.asarray([energyerrn, energyerrp]) * energies.unit
+            result['Eerr'] = result['Eerr'].to("TeV")
+            result['EF'] = e2flux.to("erg/(cm2*s)")
+            result['EFerr'] = e2fluxerr.to("erg/(cm2*s)")
+            self.results.append(result)
+
+class VTSCAT(Catalog):
+    def read(self,f):
+        with open(f) as temp:
+            self.contents = yaml.load(temp.read())  
+            #return(self.contents)
+    
+    def build(self,ind,outf="vtscat_export.yaml"):
+        #os.chdir(ind)
+        vts_sources_yamls = sorted(glob.glob(ind+"/sources_vtscat/tev-*.yaml"))
+        VTS_srcs = {}
+        for fn in vts_sources_yamls:
+            with open(fn) as f:
+                YAMLcontents = yaml.load(f.read())
+                VTS_srcs[YAMLcontents['source_id']]=YAMLcontents
+            
+        for indx in VTS_srcs:
+            VTS_srcs[indx]['seds'] = []
+            VTS_srcs[indx]['lcs'] = []
+            
+        list_of_papers = sorted(glob.glob(ind+"/20*/*"))
+        list_of_seds = sorted(glob.glob(ind+"/20*/*/*-sed*.ecsv"))
+        list_of_lcs = sorted(glob.glob(ind+"/20*/*/*-lc*.ecsv"))
+        
+        for sedfile in list_of_seds:
+            sed = Table.read(sedfile, format='ascii.ecsv')
+            sed_raw = open(sedfile).read()
+            if sed.meta['source_id'] not in VTS_egal_srcs:
+                continue
+
+            src_dict = VTS_srcs[sed.meta['source_id']]
+            src_dict['seds'].append(sed_raw)
+
+        for lcfile in list_of_lcs:
+            lc = Table.read(lcfile, format='ascii.ecsv')
+            lc_raw = open(lcfile).read()
+            if lc.meta['source_id'] not in VTS_srcs:
+                continue
+
+            src_dict = VTS_srcs[sed.meta['source_id']]
+            src_dict['lcs'].append(lc_raw)
+
+        with open("vtscat_export_20210215.yaml","w+") as vcf:
+            yaml.dump(VTS_srcs,vcf)
+                
+        self.contents = VTS_srcs
+        
+    def reset_results(self):
+        self.result = dict()
+    
+    def match_src(self,src,tol=0.5*u.Unit("deg")):
+        list_items = self.contents.keys()
+        catalog = {}
+        
+        try:
+            src['ra']
+        except KeyError:
+            src['ra'] = src['pos']['ra']
+            src['dec'] = src['pos']['dec']
+        
+        catalog['dec'] = [self.contents[item]['pos']['dec'] \
+                          for item in self.contents \
+                          if 'pos' in self.contents[item]]
+        catalog['ra']  = [self.contents[item]['pos']['ra'] \
+                          for item in self.contents \
+                          if 'pos' in self.contents[item]]
+        catalog['id']  = [self.contents[item]['source_id'] \
+                          for item in self.contents \
+                          if 'pos' in self.contents[item]]
+        
+        try:
+            self.matched = self.contents[self.match_src_catalog(catalog,src,tol)]
+        except KeyError:
+            self.matched = None
+            return
+        
+        if 'seds' not in self.matched:   
+            self.matched['seds']=[]
+        if 'lcs' not in self.matched:
+            self.matched['lcs']=[]
+        
+    def get_spectralpoints(self):
+        self.results = []
+
+        for k, sed in enumerate(self.matched['seds']):
+            energyerr = None
+            # replace ECSV dump by its Table version
+            sed = Table.read(sed, format='ascii.ecsv')
+            
+            if 'dnde' in sed.colnames:
+                flag_vts = np.isfinite(sed['dnde'])
+            elif 'e2dnde' in sed.colnames:
+                flag_vts = np.isfinite(sed['e2dnde'])
+            
+            if 'observatory' in sed.colnames:
+                flag_vts *= sed['observatory']=='VERITAS'
+            
+            sed = sed[flag_vts]
+            
+            # Check if spectrum is valid, otherwise skip
+            if len(sed)<=0:
+                continue
+            
+            energies = sed['e_ref'].to("TeV")
+            
+            if 'dnde' in sed.colnames:
+                flux = sed['dnde']
+                if 'dnde_err' in sed.keys():
+                    fluxerr = sed['dnde_err']
+                    logFlux = 2*np.log10(flux/fluxerr.unit)-np.log10((flux/fluxerr.unit + fluxerr/fluxerr.unit))
+                    fluxerr = [flux - (10**(logFlux))*fluxerr.unit, fluxerr]
+                elif 'dnde_errp' in sed.keys():
+                    fluxerr = [sed['dnde_errn'], sed['dnde_errp']]
+                else:
+                    print('No dnde_err*, check' )            
+            elif 'e2dnde' in sed.colnames:
+                flux = sed['e2dnde']/(energies**2)
+                if 'e2dnde_err' in sed.keys():
+                    fluxerr = sed['e2dnde_err']/(energies.to("TeV")**2)
+                    logFlux = 2*np.log10(flux/fluxerr.unit) - np.log10((flux/fluxerr.unit + fluxerr/fluxerr.unit))
+                    fluxerr = [flux - (10**(logFlux))*fluxerr.unit, fluxerr]
+                elif 'e2dnde_errp' in sed.keys():
+                    fluxerr = [sed['e2dnde_errn']/(energies.to("TeV")**2), 
+                               sed['e2dnde_errp']/(energies.to("TeV")**2)]
+                else:
+                    print('No e2dnde_err*, check' )
+            else:
+                print('unexpected error happened, SED does not seem to have a dnde or e2dnde column ... ')
+                continue
+            
+            isnotnan = ~np.isnan(flux) * (flux > 0)
+            energies = energies[isnotnan]
+            flux = flux[isnotnan]
+            fluxerr = np.asarray([fluxerr[0][isnotnan], fluxerr[1][isnotnan]])
+            
+            # add units
+            fluxerr = fluxerr*flux.unit
             
             if 'e_min' in sed.keys() and 'e_max' in sed.keys():
                 energyerrn = (energies - sed['e_min'][isnotnan]).to(energies.unit)

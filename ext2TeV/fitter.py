@@ -66,7 +66,7 @@ class Fitter(Source):
                     mfc  = 'white'
                     color  = 'C2'
                     alpha  = 1
-                    label  = '{0:.10s} | lowest | {1}'.format('GammaCat',spec['name'])
+                    label  = '{0:.10s} | lowest | {1}'.format('VHE',spec['name'])
                 else:
                     color  = 'C2'
                     alpha  = 0.5
@@ -78,7 +78,7 @@ class Fitter(Source):
                     if lowstatealreadylabel == 'has_label':
                         label = None
                     else:
-                        label = '{0:.10s} | elevated | {1}'.format('GammaCat',spec['name'])
+                        label = '{0:.10s} | elevated | {1}'.format('VHE',spec['name'])
                         lowstatealreadylabel = 'has_label'
             
             self.plo.errorbar(
@@ -133,6 +133,7 @@ class Fitter(Source):
                             'ylogval': EF_log[kp],
                             'ylogerr': EFerrp_log[kp],
                             'ylogmod': EF_model[kp],
+                            'ids': self.gamma[0]['name_vhe'].replace(" ","_"),
                         }
                         residuals.add_value(Point)
 
@@ -175,6 +176,7 @@ class Fitter(Source):
                             'ylogval': EF_log[kp],
                             'ylogerr': EFerrp_log[kp],
                             'ylogmod': EF_model[kp],
+                            'ids': self.gamma[0]['name_vhe'].replace(" ","_"),
                         }
                         residuals.add_value(Point)
             
@@ -218,18 +220,19 @@ class Fitter(Source):
             for kp, P in enumerate(EF_model):
                 Point = {
                     'srccls': self.gamma[0]['class'],
-                    'model': 'LP+EBL+Biteau-Cutoff',
+                    'model': 'LP+EBL+CTAGammaProp-Cutoff',
                     'xlogval': E_log[kp],
                     'ylogval': EF_log[kp],
                     'ylogerr': EFerrp_log[kp],
                     'ylogmod': EF_model[kp],
+                    'ids': self.gamma[0]['name_vhe'].replace(" ","_"),
                 }
                 residuals.add_value(Point)
         
         self.plo.plot(
             Econt,
             10**logELPcta(np.log10(Econt),*pars),
-            label='Fermi/LP+EBL+Biteau-Cutoff',
+            label='Fermi/LP+EBL+CTAGammaProp-Cutoff',
             ls='dashed',
             color='indigo',
         )

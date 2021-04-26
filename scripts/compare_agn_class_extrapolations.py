@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt 
 
-from ext2TeV.catalog import GammaCAT, FermiCAT
+from ext2TeV.catalog import GammaCAT, VTSCAT, FermiCAT
 from ext2TeV.residuals import Residuals
 from ext2TeV.fitter import Fitter
 from ext2TeV.eblmodel import Eblmodel
@@ -36,13 +36,47 @@ for k in gammacat.contents.keys():
     if np.asarray([src['classes'],]).flatten()[0] in ['hbl','lbl', 'ibl', 'fsrq', 'agn']:
         extragalactic.append(k)
 
+vtscat = VTSCAT()
+vtscat.read("ext2TeV/data/vtscat_reduced_v0.1a_20210423.yaml")
+
+extragalactic_in_vts = []
+for indx,element in enumerate(vtscat.contents):
+    try:    assert(vtscat.contents[element]['where']=='egal')
+    except: continue
+    else:   extragalactic_in_vts.append(element)
+
 # Loop over each extragalactic object
-for _,k in enumerate(extragalactic):
+for indx,element in enumerate(extragalactic+extragalactic_in_vts):
     # Load GammaCAT spectra
-    src = gammacat.contents[k]
-    gammacat.reset_results()
-    gammacat.match_src(src)
-    gammacat.get_spectralpoints()
+    myfitter = Fitter()
+
+    if indx < len(extragalactic):
+        # srcs in gammacat
+        src = gammacat.contents[element]
+        gammacat.reset_results()
+        gammacat.match_src(src)
+        gammacat.get_spectralpoints()
+        myfitter.add_vhe(gammacat.results)
+        vtscat.match_src(src)
+        if vtscat.matched != None:
+            # srcs in gammacat and vtscat
+            vtscat.get_spectralpoints()
+            myfitter.add_vhe(vtscat.results)
+    else:
+        # srcs in vtscat
+        src = vtscat.contents[element]
+        vtscat.reset_results()
+        vtscat.match_src(src)
+        vtscat.get_spectralpoints()
+        myfitter.add_vhe(vtscat.results)
+        
+        gammacat.match_src(src)
+        if gammacat.matched != None:
+            # if it is already in gammacat skip it, already processed.
+            continue
+    
+    
+    if myfitter.vhe == []: continue
     
     # Locate 3FHL counterpart (if any) and its spectrum 
     fermicat3fhl.reset_results()
@@ -63,12 +97,12 @@ for _,k in enumerate(extragalactic):
     
     # Create a Fitter object, add the previous spectral points and compute residuals
     mpl.rcParams['text.usetex'] = False
-    myfitter = Fitter()
+    #myfitter = Fitter()
 
     # Add LAT and VHE data points
     myfitter.add_fermi(fermicat.result)
     myfitter.add_fermi2(fermicat3fhl.result)
-    myfitter.add_vhe(gammacat.results)
+    #myfitter.add_vhe(gammacat.results)
     
     # Combine spectra
     myfitter.build_broadband_spectra()
