@@ -133,10 +133,10 @@ class Residuals(object):
                 plo.set_xlim([-1.3,1])
 
                 if j==0:
-                    plo.set_ylabel('$log-Residuals$',fontsize='small')
+                    plo.set_ylabel('$log-Residuals \ (\sigma)$',fontsize='small')
 
                 if i==len(list(self.xlogval.keys()))-1:
-                    plo.set_xlabel('$\mathrm{Energy\, [TeV]}$')
+                    plo.set_xlabel('$\mathrm{\log_{10} (Energy/TeV)}$')
 
                     
                 title = src_class if src_class != '' else 'other'
