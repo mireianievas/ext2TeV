@@ -33,6 +33,9 @@ class Residuals(object):
     def add_value(self, point):
         ids = point['ids']
         cls = point['srccls']
+        if cls in ['ISP','LSP']: 
+            cls = 'ISP/LSP'
+
         model = point['model']
         xlogval = point['xlogval']
         ylogval = point['ylogval']
@@ -55,7 +58,7 @@ class Residuals(object):
     
 
     def create_figure(self):
-        self.fig = plt.figure(figsize=(8,9),dpi=120)
+        self.fig = plt.figure(figsize=(8,6),dpi=120)
 
     def plot_panels(self):
         _num_ = 0
@@ -126,7 +129,7 @@ class Residuals(object):
 
                 # Add number of spectra
                 props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-                plo.text(0.8,0.1,len(np.unique(sorted(ids))), 
+                plo.text(0.7,0.1,len(np.unique(sorted(ids))), 
                          transform=plo.transAxes, fontsize='large', bbox=props)
 
                 plo.axhline(0,color='black',ls='solid',lw=0.33)
@@ -144,9 +147,18 @@ class Residuals(object):
                     title = title.upper()+'+EBL'
                 
                 plo.set_title('{0}/{1}'.format(src_class if src_class != '' else 'other',
-                                               model),fontsize='medium')
+                                               model),fontsize='small')
 
-                plo.set_ylim(-np.max(np.abs(plo.get_ylim())),np.max(np.abs(plo.get_ylim())))
+                if src_class=='HSP':
+                    plo.set_ylim([-25,25])
+                elif src_class=='ISP/LSP':
+                    plo.set_ylim([-200,200])
+                elif src_class=='EHSP':
+                    plo.set_ylim([-20,20])
+                elif src_class=='' and model!='CTAGammaProp':
+                    plo.set_ylim([-20,20])
+                else:
+                    plo.set_ylim(-np.max(np.abs(plo.get_ylim())),np.max(np.abs(plo.get_ylim())))
                 plo.grid(lw=0.5,ls='dotted',alpha=0.5,color='black')
 
         self.fig.tight_layout(pad=0.0)

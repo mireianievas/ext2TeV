@@ -29,7 +29,7 @@ ebl = Eblmodel()
 ebl.load_ebl_dominguez()
 ebl.set_interpolator()
 
-# Look forextragalactic sources
+# Look for extragalactic sources
 extragalactic = []
 for k in gammacat.contents.keys():
     src = gammacat.contents[k]

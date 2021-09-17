@@ -403,7 +403,14 @@ class FermiCAT(Catalog):
         self.result['plec']['EExpF'] = self.matched['Unc_PLEC_Expfactor']
         self.result['plec']['ExpI'] = self.matched['PLEC_Exp_Index']
         self.result['plec']['EExpI'] = self.matched['Unc_PLEC_Exp_Index']
-    
+        # Preferred model (4FGL)
+        if self.matched['SpectrumType']=="PowerLaw":
+            self.result['spectrumtype'] = "pwl"
+        elif self.matched['SpectrumType']=="LogParabola":
+            self.result['spectrumtype'] = "lp"
+        elif self.matched['SpectrumType']=="PLExpCutoff":
+            self.result['spectrumtype'] = "plec"
+
     def fill_spectrum(self):
         Eraw = self.raw_energies
         E = np.asarray([10 ** np.mean(np.log10(k[:-1])) for k in Eraw])

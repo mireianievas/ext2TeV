@@ -15,7 +15,7 @@ class Fitter(Source):
         super().__init__()
 
     def create_figure(self):
-        self.fig = plt.figure(figsize=(4,3), dpi=150)
+        self.fig = plt.figure(figsize=(3.4,2.5), dpi=150)
         self.plo = self.fig.add_subplot(111)
         self.plo.set_yscale('log')
         self.plo.set_xscale('log')
@@ -29,8 +29,11 @@ class Fitter(Source):
         
         self.plo.set_ylabel('$\mathrm{E^2 dF/dE\, [erg/cm2/s]}$')
         self.plo.set_xlabel('$\mathrm{Energy\, [TeV]}$')
-        self.plo.set_title('{0} ({1})'.format(self.gamma[0]['name_vhe'],self.gamma[0]['name_fermi']))
-        self.plo.legend(fontsize='5',ncol=2,loc=3)
+        self.plo.set_title('{0} ({1})'.format(self.gamma[0]['name_vhe'],self.gamma[0]['name_fermi']),fontsize='small')
+        if 'SHBL' in self.gamma[0]['name_vhe'] or '1RXS' in self.gamma[0]['name_vhe']:
+            self.plo.legend(fontsize='4.8',ncol=1,loc=3)
+        else:
+            self.plo.legend(fontsize='4.8',ncol=2,loc=3)
     
     def plot_fermi_data(self):
         for fermi in [self.fermi,self.fermi2]:
@@ -220,7 +223,32 @@ class Fitter(Source):
             for kp, P in enumerate(EF_model):
                 Point = {
                     'srccls': self.gamma[0]['class'],
-                    'model': 'LP+EBL+CTAGammaProp-Cutoff',
+                    'model': 'CTAGammaProp',
+                    'xlogval': E_log[kp],
+                    'ylogval': EF_log[kp],
+                    'ylogerr': EFerrp_log[kp],
+                    'ylogmod': EF_model[kp],
+                    'ids': self.gamma[0]['name_vhe'].replace(" ","_"),
+                }
+                residuals.add_value(Point)    
+        
+        self.plo.plot(
+            Econt,
+            10**logELPcta(np.log10(Econt),*pars),
+            label='Fermi/CTAGammaProp',
+            ls='dashed',
+            color='indigo',
+        )
+        
+        if residuals is not None:
+            model = self.fermi['spectrumtype']
+            ebl_abs = self.ebl.ebl_absorption(self.redshift, E)
+            EF_model = np.log10(self.lat_model_interpreter(E,self.fermi[model])*ebl_abs)
+            
+            for kp, P in enumerate(EF_model):
+                Point = {
+                    'srccls': self.gamma[0]['class'],
+                    'model': 'FermiPreferred',
                     'xlogval': E_log[kp],
                     'ylogval': EF_log[kp],
                     'ylogerr': EFerrp_log[kp],
@@ -229,13 +257,17 @@ class Fitter(Source):
                 }
                 residuals.add_value(Point)
         
+        ebl_abs = self.ebl.ebl_absorption(self.redshift, Econt)
         self.plo.plot(
             Econt,
-            10**logELPcta(np.log10(Econt),*pars),
-            label='Fermi/LP+EBL+CTAGammaProp-Cutoff',
-            ls='dashed',
+            self.lat_model_interpreter(Econt,self.fermi[model])*ebl_abs,
+            label='Fermi/FermiPreferred',
+            ls='dashdot',
+            alpha=0.5,
             color='indigo',
         )
+                
+        
         
     
     def fit_models(self,residuals=None):
