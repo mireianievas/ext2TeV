@@ -50,12 +50,15 @@ class Spectrum(object):
         Ecut = 10**theta[-1]
         sed = self.logparabola(E,theta[:-1])*np.exp(-(E/Ecut)**Gamma2)
         return(sed)
+    def powerlaw_ctacut(self,E,theta):        
+        sed = self.powerlaw(E,theta)*np.exp(-(E/self.Ecutoff))
+        return(sed)
     def logparabola_ctacut(self,E,theta):        
         sed = self.logparabola(E,theta)*np.exp(-(E/self.Ecutoff))
         return(sed)
     
     @staticmethod
-    def lat_model_interpreter(E,model):
+    def lat_model_interpreter(E,model,Einvcut=0):
         ### lat energies are in MeV by default ... accept TeV?
         E = E*u.Unit("TeV")
         
@@ -83,8 +86,10 @@ class Spectrum(object):
     
         # (1.60218 * 1e-6) = TeV2/cm2/s/MeV -> erg/cm2/s 
         # attention, it is the natural log
+        
         sed = Fnorm * (E ** 2) * \
               ((E / PivotE) ** (-Gamma - Beta * np.log(E / PivotE)))*\
-              np.exp(ExpF * (PivotE.to("MeV").value ** ExpI - (E.to("MeV").value) ** ExpI))
+              np.exp(ExpF * (PivotE.to("MeV").value ** ExpI - (E.to("MeV").value) ** ExpI)) *\
+              np.exp(-(E.to("TeV").value*Einvcut))
         
         return(sed.to("erg/(cm2*s)").value)

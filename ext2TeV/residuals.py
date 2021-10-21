@@ -58,7 +58,7 @@ class Residuals(object):
     
 
     def create_figure(self):
-        self.fig = plt.figure(figsize=(8,6),dpi=120)
+        self.fig = plt.figure(figsize=(14,6),dpi=120)
 
     def plot_panels(self):
         _num_ = 0

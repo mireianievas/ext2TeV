@@ -223,7 +223,7 @@ class Fitter(Source):
             for kp, P in enumerate(EF_model):
                 Point = {
                     'srccls': self.gamma[0]['class'],
-                    'model': 'CTAGammaProp',
+                    'model': 'CTAGammaProp-LP',
                     'xlogval': E_log[kp],
                     'ylogval': EF_log[kp],
                     'ylogerr': EFerrp_log[kp],
@@ -235,7 +235,37 @@ class Fitter(Source):
         self.plo.plot(
             Econt,
             10**logELPcta(np.log10(Econt),*pars),
-            label='Fermi/CTAGammaProp',
+            label='Fermi/CTAGammaProp-LP',
+            ls='dotted',
+            color='indigo',
+        )
+        # Following CTA's paper, but this time using a pure PWL + CTAprop cutoff
+        logPWLcta = lambda x, *args: np.log10((10**x)*(10**x)*self.powerlaw_ctacut(10**x,args)) +\
+            np.log10(self.ebl.ebl_absorption(self.redshift, 10**x))
+        self.E0 = self.fermi['lp']['PivotE'].to("TeV").value
+        pars = [
+            np.log10(self.fermi['lp']['Fnorm'].to("erg/(cm2*s*TeV2)").value),
+            -self.fermi['pwl']['Gamma'],
+        ]
+        
+        if residuals is not None:
+            EF_model = logPWLcta(E_log,*pars)
+            for kp, P in enumerate(EF_model):
+                Point = {
+                    'srccls': self.gamma[0]['class'],
+                    'model': 'CTAGammaProp-PWL',
+                    'xlogval': E_log[kp],
+                    'ylogval': EF_log[kp],
+                    'ylogerr': EFerrp_log[kp],
+                    'ylogmod': EF_model[kp],
+                    'ids': self.gamma[0]['name_vhe'].replace(" ","_"),
+                }
+                residuals.add_value(Point)    
+        
+        self.plo.plot(
+            Econt,
+            10**logPWLcta(np.log10(Econt),*pars),
+            label='Fermi/CTAGammaProp-PWL',
             ls='dashed',
             color='indigo',
         )
@@ -266,6 +296,33 @@ class Fitter(Source):
             alpha=0.5,
             color='indigo',
         )
+        
+        if residuals is not None:
+            model = self.fermi['spectrumtype']
+            ebl_abs = self.ebl.ebl_absorption(self.redshift, E)
+            EF_model = np.log10(self.lat_model_interpreter(E,self.fermi[model],1./self.Ecutoff)*ebl_abs)
+            
+            for kp, P in enumerate(EF_model):
+                Point = {
+                    'srccls': self.gamma[0]['class'],
+                    'model': 'FermiPreferred+CTApropcut',
+                    'xlogval': E_log[kp],
+                    'ylogval': EF_log[kp],
+                    'ylogerr': EFerrp_log[kp],
+                    'ylogmod': EF_model[kp],
+                    'ids': self.gamma[0]['name_vhe'].replace(" ","_"),
+                }
+                residuals.add_value(Point)
+        
+        ebl_abs = self.ebl.ebl_absorption(self.redshift, Econt)
+        self.plo.plot(
+            Econt,
+            self.lat_model_interpreter(Econt,self.fermi[model],1./self.Ecutoff)*ebl_abs,
+            label='Fermi/FermiPreferred+CTApropcut',
+            ls='dashdot',
+            alpha=0.5,
+            color='limegreen',
+        )
                 
         
         
@@ -277,6 +334,8 @@ class Fitter(Source):
         logLPabs = lambda x, *args: np.log10((10**x)*(10**x)*self.logparabola(10**x,args)) +\
             np.log10(self.ebl.ebl_absorption(self.redshift, 10**x)[0])
         logEPWLabs = lambda x, *args: np.log10((10**x)*(10**x)*self.pwl_expcutoff(10**x,args)) +\
+            np.log10(self.ebl.ebl_absorption(self.redshift, 10**x)[0])
+        logPWLcta = lambda x, *args: np.log10((10**x)*(10**x)*self.powerlaw_ctacut(10**x,args)) +\
             np.log10(self.ebl.ebl_absorption(self.redshift, 10**x)[0])
         logELPcta = lambda x, *args: np.log10((10**x)*(10**x)*self.logparabola_ctacut(10**x,args)) +\
             np.log10(self.ebl.ebl_absorption(self.redshift, 10**x)[0])        
@@ -313,6 +372,18 @@ class Fitter(Source):
             10**logEPWLabs(np.log10(Econt),*popt),
             label='Fit/EPWL',
             ls='dashdot',
+            color='indigo',
+        )
+        
+        ### PWLCTA
+        model_name = 'PWLCTA'
+        p0f = [-11., -1.5]
+        popt, pcov = sop.curve_fit(logPWLcta, E_log, EF_log, p0f, sigma=EFerrp_log/EFerrp_log)
+        self.plo.plot(
+            Econt,
+            10**logPWLcta(np.log10(Econt),*popt),
+            label='Fit/PWLCTA',
+            ls='dotted',
             color='indigo',
         )
 
